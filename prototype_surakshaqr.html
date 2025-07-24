@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!--
+        SECURITY ENHANCEMENT: Content Security Policy (CSP)
+        This is a critical security layer that mitigates Cross-Site Scripting (XSS) and other injection attacks.
+        It specifies which sources of content are trusted and allowed to be loaded by the browser.
+    -->
+    <meta http-equiv="Content-Security-Policy" content="
+        default-src 'self'; 
+        script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; 
+        style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; 
+        font-src 'self' https://fonts.gstatic.com;
+        img-src 'self' https://placehold.co;
+    ">
+    <title>Project Suraksha QR - Suraksha Bank Prototype</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .modal-backdrop {
+            background-color: rgba(0, 0, 0, 0.6);
+            transition: opacity 0.3s ease;
+        }
+        .modal-content {
+            transition: transform 0.3s ease;
+        }
+        .hidden {
+            display: none;
+        }
+        /* Adding styles for the loader */
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3b82f6;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        /* Style for improved button feedback */
+        .interactive-button {
+            transition: transform 0.1s ease;
+        }
+        .interactive-button:active {
+            transform: scale(0.97);
+        }
+        .otp-input {
+            width: 3rem;
+            height: 3rem;
+            text-align: center;
+            font-size: 1.5rem;
+            border-radius: 0.5rem;
+            border: 2px solid #d1d5db;
+        }
+        .otp-input:focus {
+            border-color: #3b82f6;
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.4);
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
+
+    <div class="w-full max-w-sm mx-auto bg-white rounded-xl shadow-2xl overflow-hidden">
+        <!-- Header -->
+        <header class="bg-blue-800 p-4 flex items-center justify-between">
+            <img src="https://placehold.co/150x40/FFFFFF/003366?text=Suraksha+Bank" alt="Suraksha Bank Logo" class="h-8">
+            <div class="text-right">
+                <h1 class="text-white text-lg font-bold">Secure UPI</h1>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main id="main-content" class="p-6">
+            <h2 class="text-lg font-semibold text-gray-800 mb-4">Simulate a Transaction</h2>
+            <p class="text-sm text-gray-600 mb-6">Choose a scenario to test the multi-layered security system.</p>
+            
+            <div class="space-y-3">
+                <button id="btn-low-risk" class="interactive-button w-full bg-green-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-green-700">Low Risk: Verified Merchant</button>
+                <button id="btn-medium-risk" class="interactive-button w-full bg-yellow-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-yellow-600">Medium Risk: Unverified Merchant</button>
+                <button id="btn-android-high-risk" class="interactive-button w-full bg-red-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-red-700">High Risk: Helpline Hoax (Android)</button>
+                <button id="btn-ios-high-risk" class="interactive-button w-full bg-orange-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-orange-700">High Risk: Rushed Payment (iOS)</button>
+            </div>
+        </main>
+        
+        <!-- Loading Screen -->
+        <div id="loading-screen" class="p-6 hidden text-center">
+            <div class="loader mx-auto"></div>
+            <p class="mt-4 text-gray-600 font-semibold">Analyzing Transaction...</p>
+        </div>
+        
+        <!-- Time-Lock Screen -->
+        <div id="time-lock-screen" class="p-8 hidden text-center">
+            <div class="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
+                <svg class="w-10 h-10 text-blue-600 animate-spin" style="animation-duration: 3s;" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            </div>
+            <h2 class="text-2xl font-bold text-gray-900 mt-4">Security Hold Activated</h2>
+            <p class="text-gray-600 mt-2">For your protection, this high-risk payment is on a 30-minute security hold.</p>
+            <div class="mt-6 text-4xl font-bold text-blue-700" id="countdown-timer">30:00</div>
+            <p class="text-xs text-gray-500 mt-2">(Prototype simulates this in 30 seconds)</p>
+        </div>
+
+
+        <!-- Payment Confirmation Screen -->
+        <div id="payment-screen" class="p-6 hidden">
+             <div class="text-center">
+                <p class="text-gray-500">Paying To</p>
+                <p id="recipient-name" class="text-2xl font-bold text-gray-900"></p>
+                <p id="recipient-vpa" class="text-sm text-gray-600"></p>
+                
+                <!-- Verification Badge -->
+                <div id="verification-badge" class="hidden mt-2 inline-flex items-center bg-green-100 text-green-800 text-sm font-medium px-2.5 py-0.5 rounded-full">
+                    <svg class="w-4 h-4 mr-1.5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944a11.954 11.954 0 007.834 3.055a1.96 1.96 0 01-.522 3.297l-1.033.517c-.22.11-.464.053-.64-.146a4.494 4.494 0 00-6.332 0c-.176.2-.42.256-.64.146l-1.033-.517a1.96 1.96 0 01-.522-3.297zM10 12a4 4 0 100-8 4 4 0 000 8zm0 2a6 6 0 100-12 6 6 0 000 12z" clip-rule="evenodd"></path></svg>
+                    Verified Merchant
+                    <span id="rating-stars" class="ml-2 font-bold"></span>
+                </div>
+
+                <div class="my-6">
+                    <p class="text-5xl font-bold text-gray-900" id="payment-amount"></p>
+                </div>
+                <div id="pin-entry" class="mt-8">
+                    <p class="font-semibold text-gray-700 mb-2">Enter UPI PIN</p>
+                    <div class="flex justify-center space-x-3">
+                        <div class="w-12 h-12 bg-gray-200 rounded-lg"></div>
+                        <div class="w-12 h-12 bg-gray-200 rounded-lg"></div>
+                        <div class="w-12 h-12 bg-gray-200 rounded-lg"></div>
+                        <div class="w-12 h-12 bg-gray-200 rounded-lg"></div>
+                    </div>
+                </div>
+                 <button id="btn-pay" class="interactive-button w-full mt-8 bg-blue-800 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-900">PAY</button>
+            </div>
+        </div>
+
+        <!-- Result Screen -->
+        <div id="result-screen" class="p-8 text-center hidden">
+            <div id="result-icon" class="mx-auto w-20 h-20 rounded-full flex items-center justify-center mb-4">
+                <!-- Icon will be inserted here -->
+            </div>
+            <h2 id="result-title" class="text-2xl font-bold"></h2>
+            <p id="result-message" class="text-gray-600 mt-2"></p>
+            <button id="btn-new-simulation" class="interactive-button w-full mt-8 bg-gray-700 text-white font-bold py-3 px-4 rounded-lg hover:bg-gray-800">New Simulation</button>
+        </div>
+
+        <!-- Footer with Copyright -->
+        <footer class="text-center p-4 bg-gray-50 border-t">
+            <p id="copyright-footer" class="text-xs text-gray-500"></p>
+        </footer>
+    </div>
+
+    <!-- MODALS -->
+    <!-- Categorization Challenge Modal -->
+    <div id="categorization-modal" class="fixed inset-0 modal-backdrop items-center justify-center hidden p-4">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-md p-6 modal-content">
+            <h2 class="text-xl font-bold text-gray-900 text-center">To help us keep your account secure, please tell us what this payment is for.</h2>
+            <div class="grid grid-cols-2 gap-4 mt-6">
+                <button id="btn-cat-shopping" class="interactive-button flex flex-col items-center p-4 bg-gray-100 rounded-lg hover:bg-blue-100 border border-gray-200 hover:border-blue-300">
+                    <svg class="w-8 h-8 text-blue-700 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                    <span class="font-semibold">Shopping</span>
+                </button>
+                <button id="btn-cat-family" class="interactive-button flex flex-col items-center p-4 bg-gray-100 rounded-lg hover:bg-blue-100 border border-gray-200 hover:border-blue-300">
+                    <svg class="w-8 h-8 text-blue-700 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 016-6h6a6 6 0 016 6v1h-3M15 21a2 2 0 002-2v-1a2 2 0 00-2-2h-3a2 2 0 00-2 2v1a2 2 0 002 2h3zm-3-14a4 4 0 00-4 4v1h8v-1a4 4 0 00-4-4z"></path></svg>
+                    <span class="font-semibold">Family/Friend</span>
+                </button>
+            </div>
+            <div class="mt-4 p-3 bg-yellow-100 text-yellow-800 text-sm rounded-lg text-center">
+                <strong>Reminder:</strong> Suraksha Bank will never ask you to pay for a KYC update.
+            </div>
+        </div>
+    </div>
+
+    <!-- Direct Challenge Modal -->
+    <div id="direct-challenge-modal" class="fixed inset-0 modal-backdrop items-center justify-center hidden p-4">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-md p-6 text-center modal-content">
+            <div class="mx-auto w-16 h-16 bg-red-100 rounded-full flex items-center justify-center">
+                <svg class="w-10 h-10 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+            </div>
+            <h2 class="text-2xl font-bold text-gray-900 mt-4">Security Check</h2>
+            <p class="text-gray-600 mt-2">This payment of <strong id="direct-challenge-amount"></strong> is to an unverified person you have never paid before. Scammers often ask for large, urgent payments.</p>
+            <p class="font-bold text-gray-800 mt-4">Are you absolutely sure you know and trust this person?</p>
+            <div class="mt-6 space-y-3">
+                <button id="btn-challenge-cancel" class="interactive-button w-full bg-red-700 text-white font-bold py-3 px-4 rounded-lg hover:bg-red-800">No, Cancel Payment</button>
+                <button id="btn-challenge-proceed" class="interactive-button w-full bg-transparent text-gray-600 font-bold py-3 px-4 rounded-lg hover:bg-gray-200">Yes, I Trust Them & Accept the Risk</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Consent Modals -->
+    <div id="geolocation-consent-modal" class="fixed inset-0 modal-backdrop items-center justify-center hidden p-4">
+         <div class="bg-white rounded-lg shadow-xl w-full max-w-md p-6 text-center modal-content">
+            <div class="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
+                 <svg class="w-10 h-10 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+            </div>
+            <h2 class="text-2xl font-bold text-gray-900 mt-4">Protect This Payment?</h2>
+            <p class="text-gray-600 mt-2">To help protect you from scams, we can perform a quick security check. This involves checking if this payment is happening from a location that is unusual for you.</p>
+            <p class="text-sm text-gray-500 mt-2">This requires one-time access to your device's location, just for this transaction. We will not track you or store your location history.</p>
+            <div class="mt-6 space-y-3">
+                <button id="btn-geo-allow" class="interactive-button w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700">Allow Security Check</button>
+                <button id="btn-geo-deny" class="interactive-button w-full bg-transparent text-gray-600 font-bold py-3 px-4 rounded-lg hover:bg-gray-200">No, Continue Without Check</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="call-log-consent-modal" class="fixed inset-0 modal-backdrop items-center justify-center hidden p-4">
+         <div class="bg-white rounded-lg shadow-xl w-full max-w-md p-6 text-center modal-content">
+            <div class="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
+                 <svg class="w-10 h-10 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path></svg>
+            </div>
+            <h2 class="text-2xl font-bold text-gray-900 mt-4">Extra Security Check for Phone Scams</h2>
+            <p class="text-gray-600 mt-2">Scammers sometimes call and pressure people into making urgent payments. To protect you from this specific type of fraud, we need your permission to see if you received a call from an unsaved number right before this payment.</p>
+             <p class="text-sm text-gray-500 mt-2">We will <strong>only</strong> check the time of the last call and whether the number is in your contacts. We <strong>do not</strong> listen to calls, read your contacts, or store your call history.</p>
+            <div class="mt-6 space-y-3">
+                <button id="btn-call-allow" class="interactive-button w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700">Allow Phone Scam Check</button>
+                <button id="btn-call-deny" class="interactive-button w-full bg-transparent text-gray-600 font-bold py-3 px-4 rounded-lg hover:bg-gray-200">Deny</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Post-Hold Confirmation Modal -->
+    <div id="post-hold-confirm-modal" class="fixed inset-0 modal-backdrop items-center justify-center hidden p-4">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-md p-6 text-center modal-content">
+            <h2 class="text-2xl font-bold text-gray-900 mt-4">Security Hold Complete</h2>
+            <p class="text-gray-600 mt-2">The 30-minute security hold has finished. Do you still wish to proceed with this payment?</p>
+            <div class="mt-6 space-y-3">
+                <button id="btn-post-hold-proceed" class="interactive-button w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700">Yes, Proceed with Payment</button>
+                <button id="btn-post-hold-cancel" class="interactive-button w-full bg-transparent text-gray-600 font-bold py-3 px-4 rounded-lg hover:bg-gray-200">No, Cancel Payment</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 3-Factor Verification Modals -->
+    <div id="bank-otp-modal" class="fixed inset-0 modal-backdrop items-center justify-center hidden p-4">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-md p-6 text-center modal-content">
+            <h2 class="text-2xl font-bold text-gray-900 mt-4">Final Verification: Step 1 of 3</h2>
+            <p class="text-gray-600 mt-2">Please call the Suraksha Bank helpline. A bank employee will provide you with a secure OTP to enter below.</p>
+            <div class="my-4 space-x-2"><input type="text" maxlength="6" id="bank-otp-input" class="otp-input tracking-widest w-48 mx-auto"></div>
+            <button id="btn-verify-bank-otp" class="interactive-button w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700">Verify Bank OTP</button>
+            <p id="bank-otp-error" class="text-red-500 text-sm mt-2 hidden">Invalid OTP. Please try again.</p>
+        </div>
+    </div>
+    <div id="email-otp-modal" class="fixed inset-0 modal-backdrop items-center justify-center hidden p-4">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-md p-6 text-center modal-content">
+            <h2 class="text-2xl font-bold text-gray-900 mt-4">Final Verification: Step 2 of 3</h2>
+            <p class="text-gray-600 mt-2">An OTP has been sent to your registered email address. Please enter it below.</p>
+            <div class="my-4 space-x-2"><input type="text" maxlength="6" id="email-otp-input" class="otp-input tracking-widest w-48 mx-auto"></div>
+            <button id="btn-verify-email-otp" class="interactive-button w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700">Verify Email OTP</button>
+            <p id="email-otp-error" class="text-red-500 text-sm mt-2 hidden">Invalid OTP. Please try again.</p>
+        </div>
+    </div>
+    <div id="sms-otp-modal" class="fixed inset-0 modal-backdrop items-center justify-center hidden p-4">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-md p-6 text-center modal-content">
+            <h2 class="text-2xl font-bold text-gray-900 mt-4">Final Verification: Step 3 of 3</h2>
+            <p class="text-gray-600 mt-2">An OTP has been sent to your registered phone number via SMS. Please enter it below.</p>
+            <div class="my-4 space-x-2"><input type="text" maxlength="6" id="sms-otp-input" class="otp-input tracking-widest w-48 mx-auto"></div>
+            <button id="btn-verify-sms-otp" class="interactive-button w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700">Verify SMS OTP</button>
+            <p id="sms-otp-error" class="text-red-500 text-sm mt-2 hidden">Invalid OTP. Please try again.</p>
+        </div>
+    </div>
+
+<script>
+    /******************************************************************************
+    * Copyright (c) 2025 Pranay Rishi a.k.a. AT
+    *
+    * All Rights Reserved.
+    *
+    * This software and associated documentation files (the "Software") are the
+    * proprietary and confidential property of the copyright holder.
+    *
+    * The Software is provided for demonstration purposes only.
+    *
+    * UNAUTHORIZED COPYING, USE, MODIFICATION, DISTRIBUTION, OR SUBLICENSING
+    * OF THIS SOFTWARE, VIA ANY MEDIUM, IS STRICTLY PROHIBITED.
+    ******************************************************************************/
+
+    // --- STATE MANAGEMENT ---
+    let currentTransaction = {};
+    let consentResponses = {};
+    let countdownInterval = null;
+
+    // ===================================================================================
+    // --- SECURE API & RISK ENGINE SIMULATION (SERVER-SIDE LOGIC) ---
+    // ===================================================================================
+    
+    const SecureAPI = {
+        API_SECRET_KEY: "a-very-secure-and-long-secret-key-for-hmac",
+        RATE_LIMIT_STORE: {},
+        RATE_LIMIT_THRESHOLD: 5, // 5 requests
+        RATE_LIMIT_WINDOW: 10000, // 10 seconds
+
+        QR_DATABASE: {
+            'vendor123@okbank': { isVerified: true, rating: 4.8, name: 'Weekly Vegetable Vendor' },
+            'randomperson@okbank': { isVerified: false, rating: null, name: 'Kiosk Owner' },
+            'scammer99@okbank': { isVerified: false, rating: null, name: 'Suraksha Bank Verification' }
+        },
+
+        _sign: function(dataString) {
+            let hash = 0;
+            for (let i = 0; i < dataString.length; i++) {
+                const char = dataString.charCodeAt(i);
+                hash = ((hash << 5) - hash) + char;
+                hash |= 0;
+            }
+            return hash.toString();
+        },
+        handleRequest: function(request) {
+            // SECURITY LAYER 1: Rate Limiting (Defense against Brute-Force/DDoS)
+            const clientIp = '127.0.0.1'; // Simulated client IP
+            const now = Date.now();
+            const requests = this.RATE_LIMIT_STORE[clientIp] || [];
+            const recentRequests = requests.filter(timestamp => now - timestamp < this.RATE_LIMIT_WINDOW);
+            if (recentRequests.length >= this.RATE_LIMIT_THRESHOLD) {
+                console.error("API SECURITY ALERT: Rate limit exceeded. Request rejected.");
+                return { success: false, error: "Too Many Requests", status: 429 };
+            }
+            this.RATE_LIMIT_STORE[clientIp] = [...recentRequests, now];
+
+            // SECURITY LAYER 2: HMAC Signature Verification (Defense against MITM/Tampering)
+            const expectedSignature = this._sign(request.body + this.API_SECRET_KEY);
+            if (request.headers['X-Request-Signature'] !== expectedSignature) {
+                console.error("API SECURITY ALERT: Invalid signature. Request rejected.");
+                return { success: false, error: "Authentication Failed", status: 403 };
+            }
+
+            // SECURITY LAYER 3: Input Validation (Defense against Injection Attacks)
+            const txData = JSON.parse(request.body);
+            if (!txData || typeof txData.amount !== 'number' || !txData.recipient || !txData.user) {
+                console.error("API SECURITY ALERT: Invalid input format. Request rejected.");
+                return { success: false, error: "Bad Request", status: 400 };
+            }
+            
+            const qrInfo = this.QR_DATABASE[txData.recipient.vpa] || { isVerified: false, rating: null };
+            
+            // SECURITY LAYER 4: AI Risk Scoring (Business Logic)
+            const riskScore = this.RTRE.getRiskScore(txData, qrInfo);
+            return { success: true, riskScore: riskScore, qrInfo: qrInfo, status: 200 };
+        },
+        RTRE: {
+            getRiskScore: function(txData, qrInfo) {
+                let score = 0;
+                let weights = {
+                    newVPA: 0.3,
+                    highAmountDeviation: 0.2,
+                    highInteractionSpeed: 0.25,
+                    postUnknownCall: 0.8,
+                    mismatchLocation: 0.4,
+                    iosHighRiskCombo: 0.9,
+                    verifiedMerchantDiscount: -0.5 
+                };
+                
+                if (qrInfo.isVerified) score += weights.verifiedMerchantDiscount;
+                if (txData.recipient.isNew && !qrInfo.isVerified) score += weights.newVPA;
+                if (txData.amount > txData.user.avgTransaction * 5) score += weights.highAmountDeviation;
+                if (txData.behavior.interactionSpeed === 'high') score += weights.highInteractionSpeed;
+                if (txData.consent.geolocation && txData.context.isKnownMerchantLocation && txData.recipient.isNew) score += weights.mismatchLocation;
+                if (txData.consent.call_log && txData.context.precededByUnknownCall) score += weights.postUnknownCall;
+                if (txData.context.isIosHighRisk && txData.recipient.isNew && txData.behavior.interactionSpeed === 'high' && txData.amount > 10000) score += weights.iosHighRiskCombo;
+                
+                return Math.max(0, Math.min(score, 1.0));
+            }
+        },
+        sendSilentAlert: function(txData) {
+            console.log("%c--- SILENT BANK ALERT ---", "color: #ff0000; font-weight: bold;");
+            console.log("High-risk transaction override detected. Initiating fraud investigation protocol.");
+            console.log(`Transaction Details: Amount=₹${txData.amount}, Recipient=${txData.recipient.vpa}`);
+            console.log("User has been placed in a 30-minute cooling-off period.");
+            console.log("--------------------------");
+        }
+    };
+
+    // --- CLIENT-SIDE LOGIC ---
+    
+    async function fetchRiskScoreFromAPI(txData, consentData) {
+        const body = JSON.stringify({ ...txData, consent: consentData });
+        const signature = SecureAPI._sign(body + SecureAPI.API_SECRET_KEY);
+        const request = {
+            body: body,
+            headers: { 'Content-Type': 'application/json', 'X-Request-Signature': signature }
+        };
+        return new Promise(resolve => {
+            setTimeout(() => {
+                const response = SecureAPI.handleRequest(request);
+                resolve(response);
+            }, 1000);
+        });
+    }
+
+    const scenarios = {
+        low_risk: { amount: 500, recipient: { name: 'Weekly Vegetable Vendor', vpa: 'vendor123@okbank', isNew: false }, user: { avgTransaction: 400 }, behavior: { interactionSpeed: 'normal' }, context: { precededByUnknownCall: false, isKnownMerchantLocation: true, isIosHighRisk: false } },
+        medium_risk: { amount: 3500, recipient: { name: 'Kiosk Owner', vpa: 'randomperson@okbank', isNew: true }, user: { avgTransaction: 600 }, behavior: { interactionSpeed: 'normal' }, context: { precededByUnknownCall: false, isKnownMerchantLocation: true, isIosHighRisk: false } },
+        android_high_risk: { amount: 25000, recipient: { name: 'Suraksha Bank Verification', vpa: 'scammer99@okbank', isNew: true }, user: { avgTransaction: 1000 }, behavior: { interactionSpeed: 'high' }, context: { precededByUnknownCall: true, isKnownMerchantLocation: false, isIosHighRisk: false } },
+        ios_high_risk: { amount: 25000, recipient: { name: 'Suraksha Bank Verification', vpa: 'scammer99@okbank', isNew: true }, user: { avgTransaction: 1000 }, behavior: { interactionSpeed: 'high' }, context: { precededByUnknownCall: false, isKnownMerchantLocation: false, isIosHighRisk: true } }
+    };
+
+    // --- UI FLOW & LOGIC ---
+
+    function simulateTransaction(riskLevel) {
+        currentTransaction = scenarios[riskLevel];
+        consentResponses = {};
+        if (currentTransaction.context.isKnownMerchantLocation) {
+            showModal('geolocation-consent-modal');
+        } else if (currentTransaction.context.precededByUnknownCall) {
+            showModal('call-log-consent-modal');
+        } else {
+            analyzeAndProceed();
+        }
+    }
+    
+    function handleConsent(type, granted) {
+        consentResponses[type] = granted;
+        if (type === 'geolocation') hideModal('geolocation-consent-modal');
+        else if (type === 'call_log') hideModal('call-log-consent-modal');
+        if (type === 'geolocation' && currentTransaction.context.precededByUnknownCall) {
+             showModal('call-log-consent-modal');
+        } else {
+            analyzeAndProceed();
+        }
+    }
+
+    async function analyzeAndProceed() {
+        showScreen('loading-screen');
+        const apiResponse = await fetchRiskScoreFromAPI(currentTransaction, consentResponses);
+        hideScreen('loading-screen');
+
+        if (!apiResponse.success) {
+            showResult(false, 'Transaction Failed', `Error: ${apiResponse.error}. Please try again.`);
+            return;
+        }
+        
+        currentTransaction.qrInfo = apiResponse.qrInfo;
+        const riskScore = apiResponse.riskScore;
+        console.log(`API Response | Risk Score: ${riskScore.toFixed(2)} | Verified: ${currentTransaction.qrInfo.isVerified}`);
+
+        if (riskScore >= 0.8) {
+            document.getElementById('direct-challenge-amount').innerText = `₹${currentTransaction.amount.toLocaleString('en-IN')}`;
+            showModal('direct-challenge-modal');
+        } else if (riskScore >= 0.4) {
+            showModal('categorization-modal');
+        } else {
+            showPaymentScreen();
+        }
+    }
+
+    function handleCategorization(category) {
+        hideModal('categorization-modal');
+        showPaymentScreen();
+    }
+
+    function handleDirectChallenge(proceed) {
+        hideModal('direct-challenge-modal');
+        if (proceed) {
+            SecureAPI.sendSilentAlert(currentTransaction);
+            startTimeLock();
+        } else {
+            showResult(false, 'Payment Cancelled', 'You have successfully stopped a potentially fraudulent transaction. Your money is safe.');
+        }
+    }
+    
+    function startTimeLock() {
+        showScreen('time-lock-screen');
+        let duration = 30; // 30 seconds for prototype
+        const timerElement = document.getElementById('countdown-timer');
+
+        countdownInterval = setInterval(() => {
+            const minutes = Math.floor(duration / 60);
+            const seconds = duration % 60;
+            timerElement.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            
+            if (--duration < 0) {
+                clearInterval(countdownInterval);
+                hideScreen('time-lock-screen');
+                showModal('post-hold-confirm-modal');
+            }
+        }, 1000);
+    }
+
+    function handlePostHoldConfirmation(proceed) {
+        hideModal('post-hold-confirm-modal');
+        if (proceed) {
+            if (currentTransaction.context.precededByUnknownCall || currentTransaction.context.isIosHighRisk) {
+                startThreeStepVerification();
+            } else {
+                showPaymentScreen();
+            }
+        } else {
+            showResult(false, 'Payment Cancelled', 'You chose to cancel the payment after the security hold. Your money is safe.');
+        }
+    }
+
+    function startThreeStepVerification() {
+        showModal('bank-otp-modal');
+    }
+
+    function handleOtpVerification(step) {
+        const correctOtp = "123456"; // Dummy OTP for simulation
+        let input, error;
+
+        if (step === 'bank') {
+            input = document.getElementById('bank-otp-input');
+            error = document.getElementById('bank-otp-error');
+        } else if (step === 'email') {
+            input = document.getElementById('email-otp-input');
+            error = document.getElementById('email-otp-error');
+        } else { // sms
+            input = document.getElementById('sms-otp-input');
+            error = document.getElementById('sms-otp-error');
+        }
+
+        if (input.value === correctOtp) {
+            error.classList.add('hidden');
+            hideModal(`${step}-otp-modal`);
+            if (step === 'bank') showModal('email-otp-modal');
+            else if (step === 'email') showModal('sms-otp-modal');
+            else if (step === 'sms') showPaymentScreen();
+        } else {
+            error.classList.remove('hidden');
+        }
+    }
+
+    function showPaymentScreen() {
+        showScreen('payment-screen');
+        document.getElementById('recipient-name').innerText = currentTransaction.recipient.name;
+        document.getElementById('recipient-vpa').innerText = currentTransaction.recipient.vpa;
+        document.getElementById('payment-amount').innerText = `₹${currentTransaction.amount.toLocaleString('en-IN')}`;
+        
+        const badge = document.getElementById('verification-badge');
+        if (currentTransaction.qrInfo && currentTransaction.qrInfo.isVerified) {
+            document.getElementById('rating-stars').innerText = `★ ${currentTransaction.qrInfo.rating.toFixed(1)}`;
+            badge.classList.remove('hidden');
+        } else {
+            badge.classList.add('hidden');
+        }
+    }
+
+    function processPayment() {
+        showResult(true, 'Payment Successful', `You have paid ₹${currentTransaction.amount.toLocaleString('en-IN')} to ${currentTransaction.recipient.name}.`);
+    }
+
+    function showResult(success, title, message) {
+        showScreen('result-screen');
+        const resultIcon = document.getElementById('result-icon');
+        if (success) {
+            resultIcon.className = 'mx-auto w-20 h-20 rounded-full flex items-center justify-center mb-4 bg-green-100';
+            resultIcon.innerHTML = `<svg class="w-12 h-12 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>`;
+        } else {
+            resultIcon.className = 'mx-auto w-20 h-20 rounded-full flex items-center justify-center mb-4 bg-red-100';
+            resultIcon.innerHTML = `<svg class="w-12 h-12 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>`;
+        }
+        document.getElementById('result-title').innerText = title;
+        document.getElementById('result-message').innerText = message;
+    }
+
+    function resetSimulation() {
+        clearInterval(countdownInterval);
+        showScreen('main-content');
+        currentTransaction = {};
+        consentResponses = {};
+    }
+    
+    const allScreens = ['main-content', 'loading-screen', 'time-lock-screen', 'payment-screen', 'result-screen'];
+    
+    function showScreen(screenId) {
+        allScreens.forEach(id => {
+            const screen = document.getElementById(id);
+            if (id === screenId) screen.classList.remove('hidden');
+            else screen.classList.add('hidden');
+        });
+    }
+    
+    function hideScreen(screenId) {
+        document.getElementById(screenId).classList.add('hidden');
+    }
+
+    function showModal(modalId) {
+        const modal = document.getElementById(modalId);
+        if (modal) {
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+    }
+
+    function hideModal(modalId) {
+        const modal = document.getElementById(modalId);
+        if (modal) {
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+    }
+
+    function initializeApp() {
+        // Set the copyright notice dynamically
+        const copyrightNotice = `Copyright (c) 2025 Pranay Rishi a.k.a. AT. All Rights Reserved.`;
+        document.getElementById('copyright-footer').innerText = copyrightNotice;
+
+        // Main screen buttons
+        document.getElementById('btn-low-risk').addEventListener('click', () => simulateTransaction('low_risk'));
+        document.getElementById('btn-medium-risk').addEventListener('click', () => simulateTransaction('medium_risk'));
+        document.getElementById('btn-android-high-risk').addEventListener('click', () => simulateTransaction('android_high_risk'));
+        document.getElementById('btn-ios-high-risk').addEventListener('click', () => simulateTransaction('ios_high_risk'));
+
+        // Payment screen button
+        document.getElementById('btn-pay').addEventListener('click', processPayment);
+
+        // Result screen button
+        document.getElementById('btn-new-simulation').addEventListener('click', resetSimulation);
+
+        // Categorization modal buttons
+        document.getElementById('btn-cat-shopping').addEventListener('click', () => handleCategorization('Shopping'));
+        document.getElementById('btn-cat-family').addEventListener('click', () => handleCategorization('Family/Friend'));
+
+        // Direct challenge modal buttons
+        document.getElementById('btn-challenge-cancel').addEventListener('click', () => handleDirectChallenge(false));
+        document.getElementById('btn-challenge-proceed').addEventListener('click', () => handleDirectChallenge(true));
+
+        // Geolocation consent modal buttons
+        document.getElementById('btn-geo-allow').addEventListener('click', () => handleConsent('geolocation', true));
+        document.getElementById('btn-geo-deny').addEventListener('click', () => handleConsent('geolocation', false));
+
+        // Call log consent modal buttons
+        document.getElementById('btn-call-allow').addEventListener('click', () => handleConsent('call_log', true));
+        document.getElementById('btn-call-deny').addEventListener('click', () => handleConsent('call_log', false));
+        
+        // Post-hold confirmation buttons
+        document.getElementById('btn-post-hold-proceed').addEventListener('click', () => handlePostHoldConfirmation(true));
+        document.getElementById('btn-post-hold-cancel').addEventListener('click', () => handlePostHoldConfirmation(false));
+
+        // 3FV OTP verification buttons
+        document.getElementById('btn-verify-bank-otp').addEventListener('click', () => handleOtpVerification('bank'));
+        document.getElementById('btn-verify-email-otp').addEventListener('click', () => handleOtpVerification('email'));
+        document.getElementById('btn-verify-sms-otp').addEventListener('click', () => handleOtpVerification('sms'));
+    }
+
+    document.addEventListener('DOMContentLoaded', initializeApp);
+
+</script>
+</body>
+</html>
